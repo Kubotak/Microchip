@@ -22,42 +22,39 @@ __EEPROM_DATA(0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00);		//“à‘ EEPROM‚Ì‰Šú‰»ƒf
 	unsigned char pdatac=0x00;		//ƒ|[ƒgCƒf[ƒ^ˆ——p•Ï”
 
 //ƒOƒ[ƒoƒ‹•Ï”’è‹`ƒGƒŠƒA-------------------------------------------
-
-
+int port_val;
+int port_cnt;
+int port_chg;
 
 
 //’Ç‰ÁŠÖ”’è‹`ƒGƒŠƒA-------------------------------------------------
 void delay(unsigned int);
+void spi_mode_init(void);
 void adinit(unsigned char anselh,unsigned char ansel);
 void timerinit(void);
 void pwmportinit(void);
 void pwmsetfreq(unsigned char prescale,unsigned char pr2data);
 void pwmsetduty(unsigned char setduty);
+void spi_mode_init(void);
 
 //ƒƒCƒ“ŠÖ”-------------------------------------------------
 void main (void) {
-	TRISB = 0xFC;		// RB0,1 output
-	PORTB = 0;
 
 	//ƒ[ƒJƒ‹•Ï”’è‹`ƒGƒŠƒA------------------------------------
-
-
-
+	int i ;
+	
+	port_val = 0;
+	port_cnt = 0;
+	port_chg = 0;
+	
 	//ƒNƒƒbƒNİ’è----------------------------------------------
 	OSCCON=0x70;	//OSC ‚WMHZ
 
-
-	//ƒ|[ƒg‚Ìİ’è‚Æ‰Šú‰»--------------------------------------
-	TRISA=0x00;	//PORTAİ’è@ŒÅ’èi‚OFo—Í@‚PF“ü—Íj
-	TRISB=0x00;	//PORTBİ’èi‚OFo—Í@‚PF“ü—Íj
-	TRISC=0x00;	//PORTCİ’èi‚OFo—Í@‚PF“ü—Íj
-
-	PORTA=0x00;	//L‚É‰Šú‰»@
-	PORTB=0x00;	//L‚É‰Šú‰»
-	PORTC=0x00;	//L‚É‰Šú‰»
+	//SPIƒ‚[ƒh‚ÉŠÖ‚í‚é‰Šú‰»-----------------------------------
+	spi_mode_init();
 	
 	//AD‹@”\‚Ì‰Šú‰»------------------------------------------
-	adinit(0x00,0x04);	//¶ƒoƒCƒgANSELHA‰EƒoƒCƒgANSEL
+	//adinit(0x00,0x04);	//¶ƒoƒCƒgANSELHA‰EƒoƒCƒgANSEL
 						//i’jÀs‚ÅAD‚Éİ’è‚µ‚½‘Î‰‚·‚éƒ|[ƒg‚Í“ü—Í‚É©“®İ’è‚³‚ê‚é
 						//ƒ|[ƒg‚ÌDIO‚Ìİ’è‚à©“®‚Ås‚¤‚½‚ß•K‚¸Às‚·‚é‚±‚Æ
 
@@ -87,12 +84,26 @@ void main (void) {
 	
 	while (1) {
 	//ƒƒCƒ“ƒ‹[ƒ`ƒ“‹LÚƒGƒŠƒA---------------------------------
-//		PORTBbits.RB0 = 1;
-		RA0 = 0;
-		delay(60000);
-//		PORTBbits.RB0 = 0;
-		RA0 = 1;
-		delay(60000);
+		
+		if( RA0 == 0 )
+		{
+			
+		}
+		
+		// ƒ|[ƒg‚É•Ï‰»‚ª‚ ‚Á‚½ê‡
+		if( port_chg == 1 )
+		{
+			port_chg = 0;
+			RA1 = 1; // ƒeƒXƒgo—Í
+			
+			// SPI‚Åƒf[ƒ^‘—M
+			for (i = 0x30 ; i < 0x39 ; i++) 
+			{
+				SSPBUF = (char)i ;
+				delay(1000); // 1•b–ˆ‚Éƒf[ƒ^‘—M‚·‚é
+			}
+			RA1 = 0; // ƒeƒXƒgo—Í
+		}
 	}
 }
 
@@ -102,10 +113,81 @@ void delay(unsigned int ms) {
 	for	(i=0 ; i<ms ; i++) {}
 }
 
+void interrupt interrupt_func(void)
+{
+	if( TMR1IF == 1 ) // Timer1Š„‚è‚İ‚¾‚Á‚½ê‡
+	{
+		TMR1IF = 0; // Timer1Š„‚è‚İƒtƒ‰ƒO‚ğƒNƒŠƒA
+		
+		if( RA0 == 0 )
+		{
+			if( port_val == 0 )
+			{
+				port_cnt++;
+			}
+			else
+			{
+				port_cnt = 0;
+			}
+			port_val = 0;
+		}
+		else
+		{
+			if( port_val == 1 )
+			{
+				port_cnt++;
+			}
+			else
+			{
+				port_cnt = 0;
+			}
+			port_val = 1;
+		}
+		
+		if( port_cnt == 10 )
+		{
+			port_chg = 1;
+		}
+		else if( port_cnt > 10 )
+		{
+			port_cnt = 11;
+		}
+	}
+
+	if( SSPIF == 1 ) // SPI‚ÌóMŠ®—¹Š„‚è‚İ‚¾‚Á‚½ê‡
+	{
+		SSPIF = 0; // SPI‚ÌóMŠ®—¹Š„‚è‚İƒtƒ‰ƒO‚ğƒNƒŠƒA
+	}
+}
+
+//SPIƒ‚[ƒh‚ÉŠÖ‚í‚é‰Šú‰»
+void spi_mode_init(void)
+{
+	 ADCON1 = 0b00000110 ;     // ƒAƒiƒƒO‚Íg—p‚µ‚È‚¢ARA0-RA4‚ğƒfƒWƒ^ƒ‹I/O‚ÉŠ„“–
+	 TRISA  = 0b00000001 ;     // 1‚Å“ü—Í 0‚Åo—Í RA0-RA7‘S‚Äo—Í‚Éİ’è(RA5‚Í“ü—Íê—p)
+	 //                ª RA0‚ÍAb’è‚Å“ü—Íƒ‚[ƒh‚Éİ’è
+	 TRISB  = 0b00010010 ;     // 1:in 0:out SDI(RB1:in) SDO(RB2:out) SCK(RB4:in) SS(RB5:–¢)
+	 TRISC  = 0b00000000 ;     // 1‚Å“ü—Í 0‚Åo—Í 
+
+	 PORTA  = 0b00000000 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é)
+	 PORTB  = 0b00000000 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é)
+	 PORTC  = 0b00000000 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é)
+
+	 ANSEL  = 0b00000000 ;     // Digital I/O‚Éİ’è
+	 ANSELH = 0b00000000 ;     // Digital I/O‚Éİ’è
+	
+	// SPIƒ‚[ƒh‚Ìİ’è‚Æ‰Šú‰»
+	SSPCON = 0b00100001 ;     // ƒNƒƒbƒN‹É«‚ÍLOW@ƒXƒŒ[ƒuƒ‚[ƒh‚Å‚r‚rg‚í‚È‚¢
+	SSPSTAT= 0b00000000 ;     // ƒNƒƒbƒNˆÊ‘Š‚Í—§ã‚ª‚è‚Åƒf[ƒ^‚ğ‘—‚é
+	SSPIF= 0 ;                // ‚r‚o‚h‚ÌŠ„‚İƒtƒ‰ƒO‚ğ‰Šú‰»‚·‚é
+	SSPIE= 1 ;                // ‚r‚o‚h‚ÌŠ„‚İ‚ğ‹–‰Â‚·‚é
+	PEIE = 1 ;                // ü•Ó‘•’uŠ„‚İ—LŒø
+	GIE  = 1 ;                // ‘SŠ„‚İˆ—‚ğ‹–‰Â‚·‚é
+}
+
 //AD‹@”\‚Æƒ|[ƒg‚Ìİ’è
 void adinit(unsigned char anselh,unsigned char ansel)
 {
-
 	/**************************************************
 	g—p‚·‚éADƒ|[ƒg‚Ìİ’è‚ğs‚¤
 
@@ -123,6 +205,7 @@ void adinit(unsigned char anselh,unsigned char ansel)
 			bit7:AN7(RC3)
 	**************************************************/
 
+/* AD ‹@”\‚Í–¢g—p
 
 	TRISA=TRISA | ((ansel & 0x07)+((ansel & 0x08)<<1));
 	TRISB=TRISB | ((anselh & 0x0c)<<2);
@@ -133,7 +216,7 @@ void adinit(unsigned char anselh,unsigned char ansel)
 
 	ADON=1;			//ADƒRƒ“ƒo[ƒ^‹@”\‚Ì‹–‰Â
 	ADIE=0;			//ADŠ„‚è‚İ•s‹–‰Â
-
+*/
 }
 
 //ƒ^ƒCƒ}[‰Šú‰»
