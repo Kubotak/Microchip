@@ -26,6 +26,7 @@ int port_val;
 int port_cnt;
 int port_chg;
 
+int port_test_cnt;
 
 //追加関数定義エリア-------------------------------------------------
 void delay(unsigned int);
@@ -46,6 +47,8 @@ void main (void) {
 	port_val = 0;
 	port_cnt = 0;
 	port_chg = 0;
+	
+	port_test_cnt = 0;
 	
 	//クロック設定----------------------------------------------
 	OSCCON=0x70;	//OSC ８MHZ
@@ -94,15 +97,13 @@ void main (void) {
 		if( port_chg == 1 )
 		{
 			port_chg = 0;
-			RA1 = 1; // テスト出力
-			
+			RA0 = 0; // SPI通信開始
 			// SPIでデータ送信
 			for (i = 0x30 ; i < 0x39 ; i++) 
 			{
 				SSPBUF = (char)i ;
 				delay(1000); // 1秒毎にデータ送信する
 			}
-			RA1 = 0; // テスト出力
 		}
 	}
 }
@@ -115,8 +116,25 @@ void delay(unsigned int ms) {
 
 void interrupt interrupt_func(void)
 {
-	if( TMR1IF == 1 ) // Timer1割り込みだった場合
+	
+	if( TMR1IF == 1 ) // Timer1割り込みだった場合 おそらく0.03秒毎に呼ばれる
 	{
+
+		// テストポートぱたぱた制御
+		port_test_cnt += 1;
+		if( port_test_cnt > 100  ) // 3000だと95秒
+		{
+			port_test_cnt = 0;
+			if( RA1 == 1 )
+			{
+				RA1 = 0;
+			}
+			else
+			{
+				RA1 = 1;
+			}
+		}
+		
 		TMR1IF = 0; // Timer1割り込みフラグをクリア
 		
 		if( RA0 == 0 )
@@ -157,6 +175,7 @@ void interrupt interrupt_func(void)
 	if( SSPIF == 1 ) // SPIの受信完了割り込みだった場合
 	{
 		SSPIF = 0; // SPIの受信完了割り込みフラグをクリア
+		RA0   = 1; // SPI通信終了
 	}
 }
 
@@ -165,20 +184,20 @@ void spi_mode_init(void)
 {
 	 ADCON1 = 0b00000110 ;     // アナログは使用しない、RA0-RA4をデジタルI/Oに割当
 	 TRISA  = 0b00000001 ;     // 1で入力 0で出力 RA0-RA7全て出力に設定(RA5は入力専用)
-	 //                ↑ RA0は、暫定で入力モードに設定
+	 //                ↑ RA0は、ポテンションメータ切替で使用する入力モードに設定
 	 TRISB  = 0b00010010 ;     // 1:in 0:out SDI(RB1:in) SDO(RB2:out) SCK(RB4:in) SS(RB5:未)
 	 TRISC  = 0b00000000 ;     // 1で入力 0で出力 
 
-	 PORTA  = 0b00000000 ;     // 出力ピンの初期化(全てLOWにする)
+	 PORTA  = 0b00000010 ;     // 出力ピンの初期化(全てLOWにする) ->変更：RA1は、SPIモードのCSとして使用する。(初期値：HIとした)
 	 PORTB  = 0b00000000 ;     // 出力ピンの初期化(全てLOWにする)
 	 PORTC  = 0b00000000 ;     // 出力ピンの初期化(全てLOWにする)
 
 	 ANSEL  = 0b00000000 ;     // Digital I/Oに設定
 	 ANSELH = 0b00000000 ;     // Digital I/Oに設定
-	
+
 	// SPIモードの設定と初期化
-	SSPCON = 0b00100001 ;     // クロック極性はLOW　スレーブモードでＳＳ使わない
-	SSPSTAT= 0b00000000 ;     // クロック位相は立上がりでデータを送る
+	SSPCON = 0b00100000 ;     // SPI Master mode, clock = FOSC/4
+	SSPSTAT= 0b01000000 ;     // クロック位相は立上がりでデータを送る
 	SSPIF= 0 ;                // ＳＰＩの割込みフラグを初期化する
 	SSPIE= 1 ;                // ＳＰＩの割込みを許可する
 	PEIE = 1 ;                // 周辺装置割込み有効
@@ -237,6 +256,11 @@ void timerinit(void)
 	#define TMR1L_init 0x30		//タイマー１　１ｍS用カウント値初期化定数
 	#define TMR2_init 0x00		//タイマー２　カウント値初期化定数
 
+	/* Timer割り込み間隔
+	クロック:8MHz -> FOSC/4 = 2MHz
+	式: 63536(0xF830) / (2 * 10~6) = 0.031・・・(秒)(⇒タイマ割り込み発生間隔)
+	*/
+	
 	//タイマー１ 1mSの設定（変更しないこと）---------------------------
 	T1CON=0x00;				//
 	TMR1H=TMR1H_init;		//タイマーカウントH値を初期化
