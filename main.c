@@ -21,12 +21,26 @@ __EEPROM_DATA(0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00);		//“à‘ EEPROM‚Ì‰Šú‰»ƒf
 	unsigned char pdatab=0x00;		//ƒ|[ƒgBƒf[ƒ^ˆ——p•Ï”
 	unsigned char pdatac=0x00;		//ƒ|[ƒgCƒf[ƒ^ˆ——p•Ï”
 
+unsigned char send_data_structure[] = {
+	0x41, // TCON HI byte
+	0x8E, // TCON LO byte
+//	0x8F, // TCON LO byte TSET—pB-W‚ğÚ‘±
+	0x03, // VOLATILE Wiper 0 HI byte
+	0x00, // VOLATILE Wiper 0 LO byte registance 100k ƒ¶
+	0x03, // VOLATILE Wiper 0 HI byte
+	0xFF, // VOLATILE Wiper 0 LO byte registance 30 ƒ¶
+//	0x40, // VOLATILE Wiper 0 LO byte registance 30 ƒ¶
+};
+
+
 //ƒOƒ[ƒoƒ‹•Ï”’è‹`ƒGƒŠƒA-------------------------------------------
 int port_val;
 int port_cnt;
 int port_chg;
 
 int port_test_cnt;
+unsigned char send_cnt;
+unsigned char send_data;
 
 //’Ç‰ÁŠÖ”’è‹`ƒGƒŠƒA-------------------------------------------------
 void delay(unsigned int);
@@ -37,6 +51,8 @@ void pwmportinit(void);
 void pwmsetfreq(unsigned char prescale,unsigned char pr2data);
 void pwmsetduty(unsigned char setduty);
 void spi_mode_init(void);
+void potensiometer_init(void);
+void send_data_to_potensiometer(unsigned char data);
 
 //ƒƒCƒ“ŠÖ”-------------------------------------------------
 void main (void) {
@@ -49,6 +65,8 @@ void main (void) {
 	port_chg = 0;
 	
 	port_test_cnt = 0;
+	send_cnt = 0;
+	send_data = 0x00;
 	
 	//ƒNƒƒbƒNİ’è----------------------------------------------
 	OSCCON=0x70;	//OSC ‚WMHZ
@@ -85,24 +103,23 @@ void main (void) {
 	TMR1ON=1;	//ƒ^ƒCƒ}[‚Pi1mSŠî€ƒ^ƒCƒ}[jŠJni‚OF’â~@‚PFŠJnj
 	//pwmstart();	//PWMŠJn@g—p‚·‚éê‡‚Í’ß‚ğ‚Æ‚é‚±‚Æ
 	
+	// ƒ|ƒeƒ“ƒVƒ‡ƒ[ƒ^‚Ì‰Šúİ’è
+	potensiometer_init();
+	
 	while (1) {
 	//ƒƒCƒ“ƒ‹[ƒ`ƒ“‹LÚƒGƒŠƒA---------------------------------
-		
-		if( RA0 == 0 )
-		{
-			
-		}
 		
 		// ƒ|[ƒg‚É•Ï‰»‚ª‚ ‚Á‚½ê‡
 		if( port_chg == 1 )
 		{
 			port_chg = 0;
-			RA0 = 0; // SPI’ÊMŠJn
-			// SPI‚Åƒf[ƒ^‘—M
-			for (i = 0x30 ; i < 0x39 ; i++) 
+			if(port_val == 0)
 			{
-				SSPBUF = (char)i ;
-				delay(1000); // 1•b–ˆ‚Éƒf[ƒ^‘—M‚·‚é
+				send_data_to_potensiometer(1); // SPI‚Åƒf[ƒ^‘—M
+			}
+			else // port_val == 1
+			{
+				send_data_to_potensiometer(2); // SPI‚Åƒf[ƒ^‘—M
 			}
 		}
 	}
@@ -119,26 +136,34 @@ void interrupt interrupt_func(void)
 	
 	if( TMR1IF == 1 ) // Timer1Š„‚è‚İ‚¾‚Á‚½ê‡ ‚¨‚»‚ç‚­0.03•b–ˆ‚ÉŒÄ‚Î‚ê‚é
 	{
-
+/*
 		// ƒeƒXƒgƒ|[ƒg‚Ï‚½‚Ï‚½§Œä
+		// RA1 ‚ğ–ñ3•b–ˆ‚ÉHIGH LOW‚ğŒJ‚è•Ô‚·
+		// ËOK 
 		port_test_cnt += 1;
 		if( port_test_cnt > 100  ) // 3000‚¾‚Æ95•b
 		{
 			port_test_cnt = 0;
 			if( RA1 == 1 )
 			{
-				RA1 = 0;
+				RA1 = 0; // ƒeƒXƒgo—Í LOW
 			}
 			else
 			{
-				RA1 = 1;
+				RA1 = 1; // ƒeƒXƒgo—Í HIGH
 			}
 		}
+*/
 		
 		TMR1IF = 0; // Timer1Š„‚è‚İƒtƒ‰ƒO‚ğƒNƒŠƒA
 		
 		if( RA0 == 0 )
 		{
+			// RA1‚ğg‚Á‚½1‰ñ–Ú‚ÌƒeƒXƒgƒR[ƒh
+			// RA0ƒ|[ƒg‚É’Ç‚µ‚ÄRA1‚ğ•Ï‰»‚³‚¹‚é
+			// ËOK 
+			//RA1 = 0; // ƒeƒXƒgo—Í LOW
+
 			if( port_val == 0 )
 			{
 				port_cnt++;
@@ -151,6 +176,11 @@ void interrupt interrupt_func(void)
 		}
 		else
 		{
+			// RA1‚ğg‚Á‚½1‰ñ–Ú‚ÌƒeƒXƒgƒR[ƒh
+			// RA0ƒ|[ƒg‚É’Ç‚µ‚ÄRA1‚ğ•Ï‰»‚³‚¹‚é
+			// ËOK 
+			//RA1 = 1; // ƒeƒXƒgo—Í HIGH
+
 			if( port_val == 1 )
 			{
 				port_cnt++;
@@ -165,6 +195,20 @@ void interrupt interrupt_func(void)
 		if( port_cnt == 10 )
 		{
 			port_chg = 1;
+
+/*
+			// RA1‚ğg‚Á‚½2‰ñ–Ú‚ÌƒeƒXƒgƒR[ƒh
+			// ƒ|[ƒgØ‘ÖŒˆ’è“_‚ÅRA1‚ğ•Ï‰»‚³‚¹‚é
+			// Ë OK
+			if(port_val == 1)
+			{
+				RA1 = 1; // ƒeƒXƒgo—Í HIGH
+			}
+			else
+			{
+				RA1 = 0; // ƒeƒXƒgo—Í LOW
+			}
+*/
 		}
 		else if( port_cnt > 10 )
 		{
@@ -174,10 +218,61 @@ void interrupt interrupt_func(void)
 
 	if( SSPIF == 1 ) // SPI‚ÌóMŠ®—¹Š„‚è‚İ‚¾‚Á‚½ê‡
 	{
+		
 		SSPIF = 0; // SPI‚ÌóMŠ®—¹Š„‚è‚İƒtƒ‰ƒO‚ğƒNƒŠƒA
-		RA0   = 1; // SPI’ÊMI—¹
+		send_cnt--;
+		if(send_cnt == 0) // ‘—MI—¹
+		{
+///*
+			// KUBOTA TEST ‡A -> OK
+			if(RA1 == 0)
+			{
+				RA1 = 1; // ƒeƒXƒgo—Í HIGH
+			}
+			else
+			{
+				RA1 = 0; // ƒeƒXƒgo—Í LOW
+			}
+//*/			
+			RB5   = 1; // SPI’ÊMI—¹
+		}
+		else //Ÿ‚Ìƒf[ƒ^‘—M
+		{
+			SSPBUF = send_data_structure[send_data*2 + 1];	// ƒf[ƒ^‘—M(2‰ñ–Ú)
+		}
 	}
 }
+
+//ƒ|ƒeƒ“ƒVƒ‡ƒ[ƒ^‚ÉŠÖ‚í‚é‰Šú‰»
+void potensiometer_init(void)
+{
+	send_data_to_potensiometer(0);
+}
+
+
+//ˆø”data:
+//0 : ‰Šú‰»
+//1 : ’ïR•Ï‰»‚»‚Ì‚P
+//2 : ’ïR•Ï‰»‚»‚Ì‚Q
+void send_data_to_potensiometer(unsigned char data)
+{
+	RB5 = 0;									// CSƒZƒbƒg
+	send_data = data;							// ‘—Mƒf[ƒ^î•ñæ“¾
+	send_cnt = 2;								// ‘—M‰ñ”ƒZƒbƒg
+	SSPBUF = send_data_structure[send_data*2];	// ƒf[ƒ^‘—M
+/*	
+			// KUBOTA TEST ‡@ -> OK
+			if(RA1 == 0)
+			{
+				RA1 = 1; // ƒeƒXƒgo—Í HIGH
+			}
+			else
+			{
+				RA1 = 0; // ƒeƒXƒgo—Í LOW
+			}
+	*/
+}
+
 
 //SPIƒ‚[ƒh‚ÉŠÖ‚í‚é‰Šú‰»
 void spi_mode_init(void)
@@ -188,8 +283,8 @@ void spi_mode_init(void)
 	 TRISB  = 0b00010010 ;     // 1:in 0:out SDI(RB1:in) SDO(RB2:out) SCK(RB4:in) SS(RB5:–¢)
 	 TRISC  = 0b00000000 ;     // 1‚Å“ü—Í 0‚Åo—Í 
 
-	 PORTA  = 0b00000010 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é) ->•ÏXFRA1‚ÍASPIƒ‚[ƒh‚ÌCS‚Æ‚µ‚Äg—p‚·‚éB(‰Šú’lFHI‚Æ‚µ‚½)
-	 PORTB  = 0b00000000 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é)
+	 PORTA  = 0b00000010 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é) ->•ÏXFRA1‚ÍAƒeƒXƒgƒsƒ“g—p‚·‚éB(‰Šú’lFHI‚Æ‚µ‚½)
+	 PORTB  = 0b00100000 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é) ->•ÏXFRB5‚ÍASPIƒ‚[ƒh‚ÌCS‚Æ‚µ‚Äg—p‚·‚éB(‰Šú’lFHI‚Æ‚µ‚½)
 	 PORTC  = 0b00000000 ;     // o—Íƒsƒ“‚Ì‰Šú‰»(‘S‚ÄLOW‚É‚·‚é)
 
 	 ANSEL  = 0b00000000 ;     // Digital I/O‚Éİ’è
@@ -342,3 +437,14 @@ void pwmsetduty(unsigned char setduty)
 	//CCPR1L‚ÍA16F677‚É‚Í–³‚¢‚Ì‚ÅƒRƒƒ“ƒgƒAƒEƒg
 	//CCPR1L=setduty;	//ƒIƒ“‚ÌŠúŠÔ
 }
+
+
+
+
+// ##‡@## Setting TCON register
+//   Ë   ‚Ç‚¤‚Â‚È‚ª‚é‚©‚ğŠôˆäŒN‚É•·‚­B‚»‚ê‚É‚æ‚Á‚ÄTCONƒZƒbƒeƒBƒ“ƒO•û–@‚ªˆÙ‚È‚é
+
+
+
+
+
