@@ -23,13 +23,11 @@ __EEPROM_DATA(0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00);		//“à‘ EEPROM‚Ì‰Šú‰»ƒf
 
 unsigned char send_data_structure[] = {
 	0x41, // TCON HI byte
-	0x8E, // TCON LO byte
-//	0x8F, // TCON LO byte TSET—pB-W‚ğÚ‘±
-	0x03, // VOLATILE Wiper 0 HI byte
-	0x00, // VOLATILE Wiper 0 LO byte registance 100k ƒ¶
-	0x03, // VOLATILE Wiper 0 HI byte
-	0xFF, // VOLATILE Wiper 0 LO byte registance 30 ƒ¶
-//	0x40, // VOLATILE Wiper 0 LO byte registance 30 ƒ¶
+	0xFF, // TCON LO byte W, A, B ƒ|[ƒg‚Í‘S‚ÄÚ‘±‚µ‚½ó‘Ô‚É‚·‚éBƒn[ƒh“I‚É‚ÍBƒ|[ƒg‚ÍƒOƒ‰ƒ“ƒh‚É—‚Æ‚·
+	0x10, // VOLATILE Wiper 1 HI byte
+	0x00, // VOLATILE Wiper 1 LO byte registance 100kƒ¶
+	0x10, // VOLATILE Wiper 1 HI byte
+	0x40, // VOLATILE Wiper 1 LO byte registance 50kƒ¶
 };
 
 
@@ -141,17 +139,13 @@ void interrupt interrupt_func(void)
 		// RA1 ‚ğ–ñ3•b–ˆ‚ÉHIGH LOW‚ğŒJ‚è•Ô‚·
 		// ËOK 
 		port_test_cnt += 1;
-		if( port_test_cnt > 100  ) // 3000‚¾‚Æ95•b
+		if( port_test_cnt > 50  ) // 3000‚¾‚Æ95•b
 		{
 			port_test_cnt = 0;
-			if( RA1 == 1 )
-			{
-				RA1 = 0; // ƒeƒXƒgo—Í LOW
-			}
-			else
-			{
-				RA1 = 1; // ƒeƒXƒgo—Í HIGH
-			}
+
+			RB5 = 0;							// CSƒZƒbƒg
+			send_cnt = 1;						// ‘—M‰ñ”ƒZƒbƒg
+			SSPBUF = send_data_structure[6];	// ƒf[ƒ^‘—M
 		}
 */
 		
